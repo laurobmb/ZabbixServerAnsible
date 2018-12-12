@@ -1,0 +1,22 @@
+#!/bin/bash
+
+cat << EOF > .id_rsa
+-----BEGIN RSA PRIVATE KEY-----
+ScMCgYEA8oLxMi5ZxBPKAhN8z6tX+tJms4QyfWKe/cPtNm7aGiNXexPbmFWkaC2c
+99TTHkubEmrO92CxlmsOciFTB6NdKd3S6kfDF4gbTfqvXBl5OUm0A7rmnqaFnTAH
+/syUhgF+Ve0VVHAPZVsqmSfWd9OrU3aufRz19ixXHmpE23tOPZc=
+-----END RSA PRIVATE KEY-----
+EOF
+
+arq=( "zabbix_cfg_localhost_`date --date="1 day ago" +%Y%m%d`-0700_db-3.0.0.sql.gz" "zabbix_cfg_localhost_`date --date="1 day ago" +%Y%m%d`-1800_db-3.0.0.sql.gz" )
+chmod 400 .id_rsa
+
+for i in ${arq[*]};do
+	scp -q -P2222 -i .id_rsa /var/backups/$i root@[servidor de backup]:/var/www/html/backups/zabbix/
+done
+
+tar -vczf zabbix.`date +%Y%m%d`.tar.gz /etc/zabbix/zabbix_* /etc/my.cnf /var/www/html/agente/ /root/zabbix-backup/ /root/backup_zabbix.sh
+scp -q -P2222 -i .id_rsa zabbix.`date +%Y%m%d`.tar.gz root@[servidor de backup]:/var/www/html/backups/zabbix/
+
+rm -f .id_rsa
+rm -f zabbix.`date +%Y%m%d`.tar.gz
