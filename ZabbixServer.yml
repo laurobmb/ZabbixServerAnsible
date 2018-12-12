@@ -5,7 +5,7 @@
     DIRETORIO: "/usr/share/doc/zabbix-server-mysql-{{VERSAO}}/"
     MYSQLDB: zabbix
     MYSQLUSER: zabbix
-    MYSQLPASS: 1q2w3e@trf5@1q2w
+    MYSQLPASS: 1q2w3e@1q2w3e
     #VERSAO: '^.*(\.[0-9]*)$'
     VERSAO: "4.0.2"
     pacotes_zabbix:
