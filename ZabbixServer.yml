@@ -1,14 +1,12 @@
 ---
- - hosts: zabbixS
-   port: 22
-   vars:
+- hosts: zabbix01
+  vars:
     DIRETORIO: "/usr/share/doc/zabbix-server-mysql-{{VERSAO}}/"
     MYSQLDB: zabbix
     MYSQLUSER: zabbix
     MYSQLPASS: 1q2w3e@1q2w3e
-    #VERSAO: '^.*(\.[0-9]*)$'
-    VERSAO: "4.0.2"
-    pacotes_zabbix:
+    VERSAO: "4.2.4"
+    PACOTES_ZABBIX:
      - zabbix-agent
      - zabbix-release
      - zabbix-web
@@ -19,7 +17,7 @@
      - mariadb-libs
      - mariadb-server
      - httpd
-    pacotes_adicionais:
+    PACOTES_ADICIONAIS:
      - "aide"
      - "rsyslog"
      - "openssh-server"
@@ -35,47 +33,73 @@
      - "git"
      - "mod_ssl"
      - "net-snmp-utils"
-    servicos:
+    SERVICOS:
      - "zabbix-server"
      - "zabbix-agent"
      - "mariadb"
      - "httpd"
 
-   tasks:
-   #- yum: name=https://repo.zabbix.com/zabbix/3.0/rhel/7/x86_64/zabbix-release-3.0-1.el7.noarch.rpm state=present
-   #- yum: name=https://repo.zabbix.com/zabbix/3.4/rhel/7/x86_64/zabbix-release-3.4-2.el7.noarch.rpm state=present
-   #- yum: name=https://repo.zabbix.com/zabbix/3.5/rhel/7/x86_64/zabbix-release-3.5-1.el7.noarch.rpm state=present
-   - yum: name=https://repo.zabbix.com/zabbix/4.0/rhel/7/x86_64/zabbix-release-4.0-1.el7.noarch.rpm
-   - yum: name={{pacotes_zabbix}} state=present
-   - yum: name=epel-release state=present
-   - yum: name={{pacotes_adicionais}} state=present
-   - yum: name="*" state=latest
-   - service: name=mariadb state=started
-   #- seboolean: name=httpd_can_connect_zabbix state=yes persistent=yes
-   #- seboolean: name=zabbix_can_network state=yes persistent=yes
-   - selinux: policy=targeted state=permissive     
-   - git: repo=https://github.com/usiusi360/zabirepo.git dest=/usr/share/zabbix/zabirepo archive=/tmp/zabirepo.zip
-   - git: repo=https://github.com/maxhq/zabbix-backup.git dest=/usr/opt/zabbix-backup archive=/tmp/zabbix-backup.zip
-   - copy: src=./files/zabbix_agentd.conf.j2 dest=/etc/zabbix/zabbix_agentd.conf
-   - template: src=./files/zabbix_server.conf.j2 dest=/etc/zabbix/zabbix_server.conf
-   - copy: src=./files/my.cnf.j2 dest=/etc/my.cnf
-   - copy: src=./files/backup_zabbix.sh.j2 dest=/root/backup_zabbix.sh
-   - mysql_db: name={{MYSQLDB}} state=present
-     register: result
-   - mysql_user: name={{MYSQLUSER}} password="{{MYSQLPASS}}" priv='*.*:ALL,GRANT' state=present
-   # restaurar zabbix do dump do mysql
-   #- copy: src=zabbix.sql.gz dest=/tmp
-   #- mysql_db: name={{MYSQLDB}} state=import target=/tmp/zabbix.sql.gz   
-   # novo zabbix   
-   - mysql_db: name={{MYSQLDB}} state=import target={{DIRETORIO}}create.sql.gz
-     when: result is changed
-   - lineinfile:
-       dest: /etc/php.ini
-       state: present
-       regexp: 'date.timezone'
-       line: 'date.timezone = America/Recife'
-   - systemd: state=stopped enabled=no name=firewalld
-   - systemd: state=started daemon_reload=yes enabled=yes name={{item}}
-     with_items: "{{servicos}}"
+  tasks:
+  - name: "Instalação de repositorio da versão"
+    yum: name=https://repo.zabbix.com/zabbix/4.2/rhel/7/x86_64/zabbix-release-4.2-1.el7.noarch.rpm
 
+  - name: "Instalação de pacotes do zabbix"
+    yum: name={{PACOTES_ZABBIX}} state=present
 
+  - name: "Instalação de repositório epel-release"
+    yum: name=epel-release state=present
+
+  - name: "Instalação de repositório epel-release"
+    yum: name={{PACOTES_ADICIONAIS}} state=present
+
+  - name: "Atualização do servidor"
+    yum: name="*" state=latest
+
+  - name: "Incialização do serviço de banco de dados MYSQL"
+    service: name=mariadb state=started
+
+  - name: "Alteração de politica de SELINUX"
+    selinux: policy=targeted state=permissive     
+
+  - name: "Download do ZABIRPO"
+    git: repo=https://github.com/usiusi360/zabirepo.git dest=/usr/share/zabbix/zabirepo archive=/tmp/zabirepo.zip
+
+  - name: "Download do MYSQL-BACKUP"
+    git: repo=https://github.com/maxhq/zabbix-backup.git dest=/usr/opt/zabbix-backup archive=/tmp/zabbix-backup.zip
+
+  - name: "Copia de arquivo de configuração do zabbix agent"
+    copy: src=./files/zabbix_agentd.conf.j2 dest=/etc/zabbix/zabbix_agentd.conf
+
+  - name: "Copia de arquivo de configuração do zabbix server"
+    template: src=./files/zabbix_server.conf.j2 dest=/etc/zabbix/zabbix_server.conf
+
+  - name: "Copia de arquivo de configuração do MYSQL"
+    copy: src=./files/my.cnf.j2 dest=/etc/my.cnf
+
+  - name: "Copia de arquivo de configuração do script de backup"
+    copy: src=./files/backup_zabbix.sh.j2 dest=/root/backup_zabbix.sh
+
+  - name: "Criação de base de dados"
+    mysql_db: name={{MYSQLDB}} state=present
+    register: result
+
+  - name: "Criação de usuário da base de dados do ZABBIX"
+    mysql_user: name={{MYSQLUSER}} password="{{MYSQLPASS}}" priv='*.*:ALL,GRANT' state=present
+
+  - name: "Deploy de SCHEMA do banco"
+    mysql_db: name={{MYSQLDB}} state=import target={{DIRETORIO}}create.sql.gz
+    when: result is changed
+
+  - name: "Alteração de TIMEZONE"
+    lineinfile:
+      dest: /etc/php.ini
+      state: present
+      regexp: 'date.timezone'
+      line: 'date.timezone = America/Recife'
+
+  - name: "Desativação do firewalld"
+    systemd: state=stopped enabled=no name=firewalld
+
+  - name: "Inicialização dos serviços instalados no servidor"
+    systemd: state=started daemon_reload=yes enabled=yes name={{item}}
+    with_items: "{{SERVICOS}}"
